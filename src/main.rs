@@ -1,11 +1,19 @@
+mod audio_stream;
+
 use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}};
 use std::sync::{Arc, Mutex};
 use std::io::{self};
 
+use crate::audio_stream::AudioStream;
+
 fn main() {
+
+    let mut streamer: AudioStream = AudioStream::new();
+
+
     let host = cpal::default_host();
 
-    let devices: Vec<_> = host.input_devices().unwrap().collect();
+    let devices: Vec<cpal::Device> = host.input_devices().unwrap().collect();
     println!("Choose input device from list:");
     devices.iter().enumerate().for_each(|(i, d)| {
         println!("{}. {}", i, d.name().unwrap());
