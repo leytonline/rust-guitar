@@ -36,12 +36,13 @@ impl AudioStream {
         let input_config = self.input_device.as_ref().unwrap().default_input_config().unwrap();
         let output_config = self.output_device.as_ref().unwrap().default_output_config().unwrap();
 
-        let config = input_config.config(); 
+        let mut config = input_config.config(); 
+        config.buffer_size = cpal::BufferSize::Fixed(128);
 
         assert_eq!(input_config.sample_format(), cpal::SampleFormat::F32);
         assert_eq!(output_config.sample_format(), cpal::SampleFormat::F32);
 
-        let buffer = Arc::new(Mutex::new(vec![0.0f32; config.channels as usize * 512]));
+        let buffer = Arc::new(Mutex::new(vec![0.0f32; config.channels as usize * 128]));
         self.input_buffer = Some(buffer.clone());
 
         let in_shared = self.input_buffer.as_ref().unwrap().clone();
@@ -52,6 +53,8 @@ impl AudioStream {
                 &config,
                 move |data: &[f32], _| {
                     let mut shared = in_shared.lock().unwrap();
+                    let length = data.len();
+                    println!("{length}");
                     for (i, sample) in data.iter().enumerate() {
                         shared[i] = *sample;
                     }
@@ -66,6 +69,8 @@ impl AudioStream {
                 &config,
                 move |data: &mut [f32], _| {
                     let shared = out_shared.lock().unwrap();
+                    let length = data.len();
+                    println!("{length}");
                     for (i, sample) in data.iter_mut().enumerate() {
                         *sample = shared[i];
                     }
@@ -109,6 +114,14 @@ impl AudioStream {
 
         let outputs: Vec<cpal::Device> = self.host.output_devices().unwrap().collect();
         self.output_device = Some(outputs.get(odx as usize).unwrap().clone());
+
+        let ic = self.input_device.as_ref().unwrap().default_input_config().unwrap();
+        let oc = self.output_device.as_ref().unwrap().default_output_config().unwrap();
+
+        println!("{ic:?}\n");
+        println!("{oc:?}");
+
+
     }
 
     fn list_input_devices(&self) {
