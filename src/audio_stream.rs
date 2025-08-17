@@ -37,12 +37,12 @@ impl AudioStream {
         let output_config = self.output_device.as_ref().unwrap().default_output_config().unwrap();
 
         let mut config = input_config.config(); 
-        config.buffer_size = cpal::BufferSize::Fixed(128);
 
         assert_eq!(input_config.sample_format(), cpal::SampleFormat::F32);
         assert_eq!(output_config.sample_format(), cpal::SampleFormat::F32);
 
-        let buffer = Arc::new(Mutex::new(vec![0.0f32; config.channels as usize * 128]));
+        // arbitrarily large buffer, won't need to change but not a huge fan
+        let buffer = Arc::new(Mutex::new(vec![0.0f32; 4096]));
         self.input_buffer = Some(buffer.clone());
 
         let in_shared = self.input_buffer.as_ref().unwrap().clone();
@@ -53,10 +53,19 @@ impl AudioStream {
                 &config,
                 move |data: &[f32], _| {
                     let mut shared = in_shared.lock().unwrap();
-                    let length = data.len();
-                    println!("{length}");
+                    // let length = data.len();
+                    // println!("{length}");
                     for (i, sample) in data.iter().enumerate() {
-                        shared[i] = *sample;
+                        let mut preclamped = *sample;
+                        preclamped *= 5.0;
+                        if preclamped > 0. {
+                            preclamped = 1.0;
+                        }
+                        else {
+                            preclamped = -1.0;
+                        }
+                        preclamped *= 0.2;
+                        shared[i] = preclamped;
                     }
                 },
                 err_fn,
@@ -69,8 +78,8 @@ impl AudioStream {
                 &config,
                 move |data: &mut [f32], _| {
                     let shared = out_shared.lock().unwrap();
-                    let length = data.len();
-                    println!("{length}");
+                    // let length = data.len();
+                    // println!("{length}");
                     for (i, sample) in data.iter_mut().enumerate() {
                         *sample = shared[i];
                     }
