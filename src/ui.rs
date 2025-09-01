@@ -1,45 +1,38 @@
 use eframe::egui;
-use cpal::{traits::{DeviceTrait, HostTrait}};
+use std::sync::Arc;
 
-#[derive(Default)]
+use crate::{audio_stream::AudioStream, effects::AtomicEffects};
+
 pub struct MyApp {
-    input_devices: Vec<String>,
-    selected_device: Option<String>,
-    show_device_list: bool,
+    volume_value: u32,
+    atomic_effects: Arc<AtomicEffects>,
+    audio_streamer: AudioStream
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Audio Input Selector");
+        egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
 
-            // Button to trigger device listing
-            if ui.button("List Input Devices").clicked() {
-                self.input_devices.clear(); // Reset list
-                let host = cpal::default_host();
-                if let Ok(inputs) = host.input_devices() {
-                    self.input_devices = inputs.map(|d| d.name().unwrap_or_default()).collect();
-                    self.show_device_list = true;
+            // volume left (obviously)
+            egui::SidePanel::left("Volume panel").show_inside(ui, |ui| {
+                ui.heading("Volume control");
+                let volume_slider = ui.add(egui::Slider::new(&mut self.volume_value, 0..=100));
+                if volume_slider.dragged() {
+                    self.atomic_effects.set_volume(self.volume_value);
                 }
-            }
+            });
 
-            // Show buttons for each device
-            if self.show_device_list {
-                ui.label("Available Devices:");
-                for name in &self.input_devices {
-                    if ui.button(name).clicked() {
-                        self.selected_device = Some(name.clone());
-                        self.show_device_list = false; // hide after selection
-                    }
-                }
-            }
-
-            // Show current selection
-            if let Some(selected) = &self.selected_device {
-                ui.separator();
-                ui.label(format!("Selected device: {}", selected));
-            }
         });
     }
 }
 
+impl Default for MyApp {
+    fn default() -> Self {
+        let ae = Arc::new(AtomicEffects::new());
+        Self {
+            volume_value: 0,
+            atomic_effects: ae.clone(),
+            audio_streamer: AudioStream::with_effects(ae.clone())
+        }
+    }
+}

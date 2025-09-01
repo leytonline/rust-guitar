@@ -3,17 +3,20 @@ use std::io::{self};
 use std::sync::{Arc, Mutex};
 use std::{fmt};
 
+use crate::effects::{self, AtomicEffects};
+
 pub struct AudioStream {
     host: cpal::Host,
     input_device: Option<cpal::Device>,
     output_device: Option<cpal::Device>,
     input_stream: Option<cpal::Stream>,
     output_stream: Option<cpal::Stream>,
-    input_buffer: Option<Arc<Mutex<Vec<f32>>>>
+    input_buffer: Option<Arc<Mutex<Vec<f32>>>>, // incredible >>>>
+    effect_handler: Arc<AtomicEffects>
 }
 
 impl AudioStream {
-    pub fn new() -> Self {
+    pub fn with_effects(eh: Arc<AtomicEffects>) -> Self {
         Self {
             host: cpal::default_host(),
             input_device: None,
@@ -21,6 +24,7 @@ impl AudioStream {
             input_stream: None,
             output_stream: None, 
             input_buffer: None,
+            effect_handler: eh
         }
     }
 
@@ -47,6 +51,7 @@ impl AudioStream {
 
         let in_shared = self.input_buffer.as_ref().unwrap().clone();
         let out_shared = self.input_buffer.as_ref().unwrap().clone();
+        let shared_effects = self.effect_handler.clone();
 
         self.input_stream = Some(self.input_device.as_ref().unwrap()
             .build_input_stream(
@@ -56,15 +61,8 @@ impl AudioStream {
                     // let length = data.len();
                     // println!("{length}");
                     for (i, sample) in data.iter().enumerate() {
-                        let mut preclamped = *sample;
-                        preclamped *= 5.0;
-                        if preclamped > 0. {
-                            preclamped = 1.0;
-                        }
-                        else {
-                            preclamped = -1.0;
-                        }
-                        preclamped *= 0.2;
+                        let mut preclamped = *sample * 3.0;
+                        preclamped = preclamped.tanh();
                         shared[i] = preclamped;
                     }
                 },
@@ -78,10 +76,9 @@ impl AudioStream {
                 &config,
                 move |data: &mut [f32], _| {
                     let shared = out_shared.lock().unwrap();
-                    // let length = data.len();
-                    // println!("{length}");
+                    let volume = shared_effects.get_volume();
                     for (i, sample) in data.iter_mut().enumerate() {
-                        *sample = shared[i];
+                        *sample = shared[i] * volume;
                     }
                 },
                 err_fn,
